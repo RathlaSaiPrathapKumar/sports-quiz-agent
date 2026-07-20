@@ -1,0 +1,54 @@
+[
+  {
+    "sport": "Cricket",
+    "fact": "The first official cricket Test match was played in 1877 between Australia and England at the Melbourne Cricket Ground (MCG). Australia won by 45 runs."
+  },
+  {
+    "sport": "Cricket",
+    "fact": "Sachin Tendulkar of India is the highest run-scorer in international cricket history, scoring 100 international centuries (51 in Tests, 49 in ODIs) before retiring in 2013."
+  },
+  {
+    "sport": "Cricket",
+    "fact": "The West Indies won the first two ICC Cricket World Cups in 1975 and 1979 under the captaincy of Clive Lloyd. Both finals were played at Lord's in London."
+  },
+  {
+    "sport": "Badminton",
+    "fact": "The Thomas Cup, established in 1948, is the premier international men's team badminton championship. India won its historic first title in 2022 by defeating Indonesia 3-0 in the final."
+  },
+  {
+    "sport": "Badminton",
+    "fact": "Badminton made its official Olympic debut as a medal sport at the 1992 Summer Games in Barcelona, Spain. Indonesia's Susi Susanti won the first-ever women's singles gold medal."
+  },
+  {
+    "sport": "Football",
+    "fact": "The FIFA World Cup was first held in 1930. Uruguay hosted and won the tournament, defeating Argentina 4-2 in the final match in Montevideo."
+  },
+  {
+    "sport": "Football",
+    "fact": "Pelé of Brazil is the only player in football history to win three FIFA World Cup titles as a player, claiming victories in 1958, 1962, and 1970."
+  },
+  {
+    "sport": "Football",
+    "fact": "In the 2022 FIFA World Cup held in Qatar, Argentina won their third World Cup title by defeating France 4-2 on penalties after a dramatic 3-3 draw in extra time."
+  },
+  {
+    "sport": "Basketball",
+    "fact": "The National Basketball Association (NBA) was founded in New York City on June 6, 1946, originally named the Basketball Association of America (BAA) before merging with the NBL."
+  },
+  {
+    "sport": "Basketball",
+    "fact": "Michael Jordan led the Chicago Bulls to six NBA championships (1991–1993 and 1996–1998) and won the Finals MVP award in all six championships, a league record."
+  },
+  {
+    "sport": "Tennis",
+    "fact": "The Wimbledon Championship, founded in 1877, is the oldest tennis tournament in the world. It is the only Grand Slam tournament played on outdoor grass courts."
+  },
+  {
+    "sport": "Tennis",
+    "fact": "Roger Federer was the first male tennis player to win 20 Grand Slam singles titles. He achieved this milestone at the 2018 Australian Open."
+  },
+  {
+    "sport": "Tennis",
+    "fact": "Rafael Nadal of Spain holds the record for the most titles won at a single Grand Slam tournament, with 14 French Open (Roland Garros) men's singles championships."
+  }
+]

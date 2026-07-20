@@ -1,0 +1,15 @@
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Environment files containing API Keys
+.env
+
+# Database persistence directory (generated dynamically on startup)
+chroma_db/
+.cache/
+
+# OS metadata
+.DS_Store
+Thumbs.db
