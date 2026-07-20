@@ -26,11 +26,27 @@ def compile_quiz_data(sport, difficulty, num_questions=6, provider=None):
     # 3. Combine context
     unified_context = f"=== HISTORICAL FACTS ===\n{db_context}\n\n=== LIVE INTERNET NEWS ===\n{web_context}"
 
+    # Re-evaluate API keys dynamically
+    import os
+    active_gemini_key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
+    active_openai_key = os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY
+
+    try:
+        import streamlit as st
+        if not active_gemini_key and hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+            active_gemini_key = st.secrets["GEMINI_API_KEY"]
+        if not active_openai_key and hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
+            active_openai_key = st.secrets["OPENAI_API_KEY"]
+    except Exception:
+        pass
+
+    api_error_reason = None
+
     # Determine which LLM provider to use
     if not provider:
-        if GEMINI_API_KEY:
+        if active_gemini_key:
             provider = "Gemini"
-        elif OPENAI_API_KEY:
+        elif active_openai_key:
             provider = "OpenAI"
         else:
             provider = "Mock"
@@ -77,10 +93,10 @@ def compile_quiz_data(sport, difficulty, num_questions=6, provider=None):
     )
 
     # 4. Generate using the selected provider
-    if provider == "OpenAI" and OPENAI_API_KEY:
+    if provider == "OpenAI" and active_openai_key:
         try:
             print("[INFO]: Generating quiz using OpenAI API...")
-            client = OpenAI(api_key=OPENAI_API_KEY)
+            client = OpenAI(api_key=active_openai_key)
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",  # fallback or modern default (e.g. gpt-4o-mini)
                 response_format={"type": "json_object"},
@@ -95,27 +111,33 @@ def compile_quiz_data(sport, difficulty, num_questions=6, provider=None):
             return quiz_data, unified_context, "OpenAI"
         except Exception as e:
             print(f"[ERROR]: OpenAI quiz generation failed: {e}. Falling back to mock data.")
-            # Fall through to mock data if OpenAI fails
+            api_error_reason = f"OpenAI Error: {e}"
 
-    elif provider == "Gemini" and GEMINI_API_KEY:
-        try:
-            print("[INFO]: Generating quiz using Google Gemini API...")
-            client = genai.Client(api_key=GEMINI_API_KEY)
-            # Use gemini-1.5-flash as the fast default
-            response = client.models.generate_content(
-                model='gemini-1.5-flash',
-                contents=f"{system_instruction}\n\n{user_prompt}",
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.85
+    elif provider == "Gemini" and active_gemini_key:
+        candidate_models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-latest', 'gemini-flash-latest']
+        last_gemini_error = None
+        
+        print("[INFO]: Generating quiz using Google Gemini API...")
+        client = genai.Client(api_key=active_gemini_key)
+        
+        for model_name in candidate_models:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=f"{system_instruction}\n\n{user_prompt}",
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.85
+                    )
                 )
-            )
-            quiz_json_str = response.text
-            quiz_data = json.loads(quiz_json_str)
-            return quiz_data, unified_context, "Gemini"
-        except Exception as e:
-            print(f"[ERROR]: Gemini quiz generation failed: {e}. Falling back to mock data.")
-            # Fall through to mock data if Gemini fails
+                quiz_json_str = response.text
+                quiz_data = json.loads(quiz_json_str)
+                return quiz_data, unified_context, f"Gemini ({model_name})"
+            except Exception as e:
+                print(f"[WARNING]: Gemini model {model_name} failed: {e}")
+                last_gemini_error = e
+
+        api_error_reason = f"Gemini Error: {last_gemini_error}"
 
     # 5. Mock / Fallback generator if API keys are missing or calls fail
     print("[INFO]: Using mock generator (either keys are missing or API calls failed).")
@@ -124,7 +146,8 @@ def compile_quiz_data(sport, difficulty, num_questions=6, provider=None):
         f"=== HISTORICAL FACTS ===\n[MOCK CONTEXT] Loaded fallback facts for {sport}.\n\n"
         f"=== LIVE INTERNET NEWS ===\n[MOCK CONTEXT] DuckDuckGo crawler skipped/offline."
     )
-    return mock_quiz, mock_context, "Mock (No API keys provided or error occurred)"
+    source_label = f"Mock (Fallback: {api_error_reason})" if api_error_reason else "Mock (No API Key Configured)"
+    return mock_quiz, mock_context, source_label
 
 
 def get_mock_quiz(sport, difficulty, num_questions=6):

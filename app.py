@@ -100,15 +100,28 @@ div.stButton > button:active {
 """, unsafe_allow_html=True)
 
 # Imports from our modules
+import_success = True
 try:
     from src.generator import compile_quiz_data
     from src.database import setup_and_populate_db, get_all_facts, add_custom_fact
-except ImportError:
-    st.error("Error importing local modules. Make sure you are running Streamlit inside the project directory and package modules are installed.")
+except ImportError as e:
+    import_success = False
+    st.error(f"Error importing local modules: {e}. Make sure you are running Streamlit inside the project directory and package modules are installed.")
+    # Define fallback functions
+    def compile_quiz_data(*args, **kwargs):
+        return {}, "", "Error"
+    def setup_and_populate_db(*args, **kwargs):
+        pass
+    def get_all_facts(*args, **kwargs):
+        return []
+    def add_custom_fact(*args, **kwargs):
+        pass
 
 # Initialize the vector DB with offline facts on startup
 @st.cache_resource
 def prepare_knowledge_base():
+    if not import_success:
+        return False
     try:
         setup_and_populate_db()
         return True
@@ -137,6 +150,8 @@ if "answers_submitted" not in st.session_state:
 if "revealed_answers" not in st.session_state:
     # Tracks {q_index: is_revealed}
     st.session_state.revealed_answers = {}
+if "quiz_submitted" not in st.session_state:
+    st.session_state.quiz_submitted = False
 if "quiz_history" not in st.session_state:
     # Stores list of completed quiz dictionaries
     st.session_state.quiz_history = []
@@ -193,6 +208,7 @@ if st.sidebar.button("🎮 Generate Fresh Quiz", use_container_width=True):
             st.session_state.score = 0
             st.session_state.answers_submitted = {}
             st.session_state.revealed_answers = {}
+            st.session_state.quiz_submitted = False
             st.session_state.current_quiz_id = f"quiz_{int(time.time())}"
             st.session_state.history_saved = False
             
@@ -224,7 +240,12 @@ with tab_play:
         
         st.markdown(f"### Current Quiz: **{sport}** ({diff} - 6 Questions)")
         st.markdown(f"Generated via: `{st.session_state.quiz_source}`")
-        st.write("Complete the multiple-choice questions below:")
+        
+        # Display warning if fallback to mock mode occurred due to API key error
+        if st.session_state.quiz_source and "Mock (Fallback:" in st.session_state.quiz_source:
+            st.warning(f"⚠️ **API Key Notice**: {st.session_state.quiz_source}. Serving offline quiz fallback.")
+            
+        st.write("Select your options for all questions below, then click **Submit Entire Quiz** at the bottom:")
         st.write("---")
         
         # Display each question inside a card
@@ -237,41 +258,29 @@ with tab_play:
             
             # Options radio input
             options_dict = q_item["options"]
-            # Format label choices as "A) Option text"
             formatted_choices = [f"{k}) {v}" for k, v in options_dict.items()]
             
             # Retrieve previous answers if page reruns
-            default_selection_idx = None
+            default_selection_idx = 0
             if idx in st.session_state.answers_submitted:
                 selected_letter = st.session_state.answers_submitted[idx]
-                default_selection_idx = list(options_dict.keys()).index(selected_letter)
+                default_selection_idx = list(options_dict.keys()).index(selected_letter) if selected_letter in options_dict else 0
                 
             selected_option = st.radio(
                 f"Choose option for Question {idx+1}:",
                 options=formatted_choices,
                 index=default_selection_idx,
                 key=f"q_radio_{idx}",
+                disabled=st.session_state.quiz_submitted,
                 label_visibility="collapsed"
             )
             
-            # Extract selected letter (first character)
-            selected_letter = selected_option[0] if selected_option else None
+            # Extract and update selected letter (first character)
+            if selected_option:
+                st.session_state.answers_submitted[idx] = selected_option[0]
             
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                # Submit Answer Button
-                is_revealed = st.session_state.revealed_answers.get(idx, False)
-                if st.button("Submit Answer", key=f"submit_btn_{idx}", disabled=is_revealed):
-                    st.session_state.answers_submitted[idx] = selected_letter
-                    st.session_state.revealed_answers[idx] = True
-                    
-                    # Update score if correct
-                    if selected_letter == q_item["correct_answer"]:
-                        st.session_state.score += 1
-                    st.rerun()
-            
-            # Display results if user submitted answer
-            if st.session_state.revealed_answers.get(idx, False):
+            # Display results if user submitted entire quiz
+            if st.session_state.quiz_submitted:
                 user_ans = st.session_state.answers_submitted.get(idx)
                 correct_ans = q_item["correct_answer"]
                 correct_text = f"{correct_ans}) {options_dict[correct_ans]}"
@@ -285,7 +294,7 @@ with tab_play:
                     </div>
                     """, unsafe_allow_html=True)
                 else:
-                    user_text = f"{user_ans}) {options_dict[user_ans]}" if user_ans else "None"
+                    user_text = f"{user_ans}) {options_dict[user_ans]}" if user_ans and user_ans in options_dict else "None"
                     st.markdown(f"""
                     <div class='result-banner-incorrect'>
                         <strong>❌ Incorrect!</strong><br>
@@ -297,11 +306,24 @@ with tab_play:
             st.write("")
             st.write("---")
             
-        # Display Final Score Card at bottom
         total_questions = len(quiz_list)
-        submitted_count = len(st.session_state.revealed_answers)
         
-        if submitted_count == total_questions:
+        # Overall Submit Quiz Button (if quiz not submitted yet)
+        if not st.session_state.quiz_submitted:
+            if st.button("🚀 Submit Entire Quiz", use_container_width=True):
+                # Calculate final score across all questions
+                calculated_score = 0
+                for q_i, q_item in enumerate(quiz_list):
+                    u_choice = st.session_state.answers_submitted.get(q_i)
+                    if u_choice == q_item["correct_answer"]:
+                        calculated_score += 1
+                
+                st.session_state.score = calculated_score
+                st.session_state.quiz_submitted = True
+                st.rerun()
+                
+        # Display Final Score Card and Download section when quiz is submitted
+        if st.session_state.quiz_submitted:
             score = st.session_state.score
             pct = int((score / total_questions) * 100)
             
@@ -337,6 +359,8 @@ with tab_play:
                 download_content += f"Explanation: {q_item['explanation']}\n"
                 download_content += f"-----------------------------------------\n\n"
             
+            download_content += "Thank you for playing! Generated by Statupbox Sports Quiz Agent 🚀"
+            
             # Save to quiz history if not saved yet
             if not st.session_state.history_saved:
                 timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -369,6 +393,7 @@ with tab_play:
                     st.session_state.score = 0
                     st.session_state.answers_submitted = {}
                     st.session_state.revealed_answers = {}
+                    st.session_state.quiz_submitted = False
                     st.session_state.history_saved = False
                     st.rerun()
     else:
